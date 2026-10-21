@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.board import Board
 from src.dfs_solver import DFSSolver
-from src.astar_solver import AStarSolver
+from src.greedy_solver import GreedySolver
 
 
 class TentsGUI:
@@ -112,11 +112,11 @@ class TentsGUI:
             value="DFS", bg="#ffffff", font=("Segoe UI", 9)
         )
         rb_dfs.pack(anchor=tk.W)
-        rb_astar = tk.Radiobutton(
-            cfg_card, text="A* (Heuristic Search)", variable=self.algo_var,
-            value="ASTAR", bg="#ffffff", font=("Segoe UI", 9)
+        rb_greedy = tk.Radiobutton(
+            cfg_card, text="Greedy (Best-First Search + MRV)", variable=self.algo_var,
+            value="GREEDY", bg="#ffffff", font=("Segoe UI", 9)
         )
-        rb_astar.pack(anchor=tk.W)
+        rb_greedy.pack(anchor=tk.W)
 
         # Card 2: Nút điều khiển Demo
         ctrl_card = tk.LabelFrame(
@@ -241,7 +241,7 @@ class TentsGUI:
         if algo == "DFS":
             self.solver = DFSSolver(self.board)
         else:
-            self.solver = AStarSolver(self.board)
+            self.solver = GreedySolver(self.board)
 
         self.lbl_status.config(text="Đang giải...", fg="#f59e0b")
         self.root.update()
@@ -251,7 +251,8 @@ class TentsGUI:
         if success:
             self.steps = self.solver.step_history
             self.lbl_status.config(text="Trạng thái: Đã tìm ra lời giải!", fg="#16a34a")
-            self.lbl_nodes.config(text=f"Số nodes đã duyệt: {self.solver.nodes_explored}")
+            max_op = getattr(self.solver, 'max_open', 'N/A')
+            self.lbl_nodes.config(text=f"Nodes duyệt: {self.solver.nodes_explored} | Max Open: {max_op}")
             self.lbl_time.config(text=f"Thời gian chạy: {self.solver.execution_time * 1000:.3f} ms")
             self.lbl_steps.config(text=f"Tiến trình bước: 0 / {len(self.steps)}")
 

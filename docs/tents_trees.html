@@ -271,7 +271,7 @@
                 <li><a href="#dinh-dang-input">3. Cấu Trúc File Input (.txt)</a></li>
                 <li><a href="#chi-tiet-board">4. Mổ Xẻ Chi Tiết: src/board.py</a></li>
                 <li><a href="#chi-tiet-dfs">5. Mổ Xẻ Chi Tiết: src/dfs_solver.py</a></li>
-                <li><a href="#chi-tiet-astar">6. Mổ Xẻ Chi Tiết: src/astar_solver.py</a></li>
+                <li><a href="#chi-tiet-greedy">6. Mổ Xẻ Chi Tiết: src/greedy_solver.py</a></li>
                 <li><a href="#chi-tiet-gui">7. Mổ Xẻ Chi Tiết: gui_app.py</a></li>
                 <li><a href="#so-lieu-benchmark">8. Bảng Benchmark & Phân Tích RAM</a></li>
                 <li><a href="#huong-dan-chay">9. Các Lệnh Chạy Kiểm Thử</a></li>
@@ -506,42 +506,32 @@ current_col_tents = sum(<span class="nb">1</span> <span class="kw">for</span> (t
     <span class="kw">return False</span>  <span class="cm"># Cây này thử mọi hướng đều không thành công -> Thất bại</span></code></pre>
             </section>
 
-            <!-- PHẦN 6: ASTAR_SOLVER.PY -->
-            <section id="chi-tiet-astar" class="card">
-                <h2>6. Mổ Xẻ Chi Tiết Thuật Toán Heuristic Search: <code>src/astar_solver.py</code></h2>
-                <p><strong>Mục đích:</strong> Sử dụng hàm đánh giá $f(n) = g(n) + h(n)$ và hàng đợi ưu tiên Min-Heap để luôn chọn mở rộng trạng thái có tiềm năng nhất.</p>
+            <!-- PHẦN 6: GREEDY_SOLVER.PY -->
+            <section id="chi-tiet-greedy" class="card">
+                <h2>6. Mổ Xẻ Chi Tiết Thuật Toán Heuristic Search: <code>src/greedy_solver.py</code></h2>
+                <div class="box box-info" style="font-size: 1.05rem;">
+                    <strong>🌟 ĐÃ CÓ BẢN MỔ XẺ CHUYÊN SÂU TỪ TRÊN XUỐNG DƯỚI:</strong>
+                    <br>Xem cẩm nang chuyên biệt cực kỳ chi tiết tại file: <a href="greedy_deep_dive.html" style="font-weight: 700; color: #1d4ed8; text-decoration: underline;">greedy_deep_dive.html (Nhấn vào đây để xem ngay)</a>
+                </div>
+                <p><strong>Mục đích:</strong> Sử dụng hàm đánh giá $f(n) \equiv h(n)$ và kỹ thuật chọn biến MRV (Minimum Remaining Values) kết hợp Structural Sharing (Parent Pointer) để lao thẳng về đích với bộ nhớ tối thiểu.</p>
 
-                <h3>6.1. Cấu trúc Nút trạng thái: <code>class AStarNode</code></h3>
-                <p>Mỗi phần tử trong hàng đợi ưu tiên là một đối tượng <code>AStarNode</code> chứa:</p>
+                <h3>6.1. Cấu trúc Nút trạng thái tối ưu RAM: <code>class GreedyNode</code></h3>
+                <p>Mỗi phần tử trong hàng đợi ưu tiên là một đối tượng <code>GreedyNode</code> chỉ lưu biến vi sai và con trỏ cha:</p>
                 <ul>
-                    <li><code>tree_index</code>: Cây tiếp theo cần gán lều.</li>
-                    <li><code>tents</code>: Tập hợp lều kiểu <strong><code>frozenset</code></strong> (bắt buộc dùng <code>frozenset</code> thay vì <code>set</code> thường vì <code>frozenset</code> là kiểu dữ liệu bất biến, có thể băm <code>hashable</code> để lưu vào <code>closed_set</code> chống lặp trạng thái).</li>
-                    <li><code>g</code>: Chi phí thực tế (độ sâu = số lều đã đặt).</li>
-                    <li><code>h</code>: Chi phí ước lượng tới đích.</li>
-                    <li><code>f = g + h</code>: Tổng hàm lượng giá.</li>
-                    <li><code>__lt__(self, other)</code>: Phương thức nạp chồng toán tử so sánh nhỏ hơn <code>&lt;</code> để cấu trúc dữ liệu Min-Heap của Python (<code>heapq</code>) biết nút nào có $f$ nhỏ hơn để đẩy lên đầu hàng đợi.</li>
+                    <li><code>action = (tree_idx, r, c)</code>: Đúng 1 lều vừa cắm tại bước này.</li>
+                    <li><code>parent</code>: Con trỏ tham chiếu về node cha (tiết kiệm 90% RAM, không copy set/list).</li>
+                    <li><code>depth</code>: Số lều đã đặt.</li>
+                    <li><code>h</code>: Chi phí heuristic vi sai $O(1)$.</li>
+                    <li><code>forced_trees</code>: Số cây chỉ còn đúng 1 ô hợp lệ.</li>
+                    <li><code>__lt__(self, other)</code>: Bộ 4 tầng so sánh (1. $h$ nhỏ $\to$ 2. depth lớn $\to$ 3. forced_trees lớn $\to$ 4. Hướng tự nhiên Trên $\to$ Dưới, Trái $\to$ Phải).</li>
                 </ul>
 
-                <h3>6.2. Kỹ Thuật Đột Phá: CSP Forward Checking (Loại Bỏ Ngõ Cụt Tại Chỗ)</h3>
-                <p>Thay vì để nút bế tắc lọt vào Min-Heap rồi dùng điểm phạt dìm nó xuống, chúng ta áp dụng kỹ thuật <strong>Forward Checking</strong> trong bài toán Thỏa Mãn Ràng Buộc (CSP):</p>
-                <div class="box box-info">
-                    <strong>Cơ chế "Cho Cook Ngay Tại Chỗ":</strong>
-                    <br>• Mỗi khi định cắm thử một chiếc lều, hàm <code>_has_dead_end(...)</code> sẽ quét ngay sang miền giá trị của các cây trong tương lai.
-                    <br>• Nếu phát hiện bất kỳ cây nào bị rỗng miền giá trị (còn 0 ô hợp lệ) $\to$ <strong>LẬP TỨC <code>continue</code> BỎ QUA LUÔN</strong>!
-                    <br>• Không tạo đối tượng <code>AStarNode</code>, không tính toán $h$, không tốn 1 byte RAM nào để <code>heappush</code> vào Min-Heap!
-                </div>
-                <pre><code><span class="cm"># Trong vòng lặp sinh các nút con của solve():</span>
-<span class="kw">for</span> nr, nc <span class="kw">in</span> adjacent_cells:
-    <span class="kw">if</span> self.board.can_place_tent(nr, nc):
-        new_tents = current_node.tents | {(nr, nc)}
-
-        <span class="cm"># [CSP FORWARD CHECKING] Phát hiện bế tắc là cho cook ngay:</span>
-        <span class="kw">if</span> self._has_dead_end(current_node.tree_index + <span class="nb">1</span>, new_tents):
-            <span class="kw">continue</span>  <span class="cm"># Bỏ qua luôn, không ném vào Heap!</span>
-
-        <span class="cm"># Chỉ những trạng thái thực sự an toàn mới được đưa vào Min-Heap:</span>
-        next_node = AStarNode(..., g=new_g, h=new_h)
-        heapq.heappush(open_set, next_node)</code></pre>
+                <h3>6.2. Các kỹ thuật tối ưu hóa cốt lõi</h3>
+                <ul>
+                    <li><strong>MRV (Minimum Remaining Values):</strong> Quét các cây chưa gán lều, luôn chọn cây có ít ô hợp lệ nhất để thử trước (Fail-First Principle).</li>
+                    <li><strong>Incremental Heuristic Update ($O(1)$):</strong> Chỉ tính lại $\Delta h$ cho 2-3 cây lân cận trong bán kính Chebyshev $\le 2$.</li>
+                    <li><strong>CSP Row/Col Pruning (need > avail):</strong> Cắt tỉa ngay lập tức nếu số ô trống còn lại trên hàng/cột không đủ để đạt chỉ tiêu lều.</li>
+                </ul>
             </section>
 
             <!-- PHẦN 7: GUI_APP.PY -->

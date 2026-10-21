@@ -1,5 +1,5 @@
 """
-benchmark.py - Thu thập số liệu đo lường hiệu năng: Thời gian, Bộ nhớ (RAM) và Số node duyệt.
+benchmark.py - Thu thập số liệu đo lường hiệu năng: Thời gian, Bộ nhớ (RAM), Max Frontier (Open Set) và Số node duyệt.
 Môn học: Nhập môn Trí tuệ Nhân tạo (CO3061)
 """
 
@@ -16,11 +16,12 @@ if sys.stdout.encoding.lower() != 'utf-8':
 
 from src.board import Board
 from src.dfs_solver import DFSSolver
-from src.astar_solver import AStarSolver
+from src.greedy_solver import GreedySolver
 
 def measure_algorithm(solver_class, test_file: str, repeat: int = 5):
     """
-    Đo thời gian chạy (lấy trung bình 'repeat' lần) và lượng RAM đỉnh (Peak Memory).
+    Đo thời gian chạy (lấy trung bình 'repeat' lần), lượng RAM đỉnh (Peak Memory)
+    và kích thước cực đại của hàng đợi (Max Open / Frontier).
     """
     # 1. Đo bộ nhớ tiêu tốn bằng tracemalloc
     board = Board(test_file)
@@ -31,6 +32,7 @@ def measure_algorithm(solver_class, test_file: str, repeat: int = 5):
     tracemalloc.stop()
 
     peak_kb = peak_mem / 1024  # Chuyển đổi sang Kilobytes
+    max_open = getattr(solver, 'max_open', getattr(solver, 'nodes_explored', 0))
 
     # 2. Đo thời gian chính xác bằng vòng lặp nhiều lần để khử nhiễu
     times = []
@@ -44,7 +46,7 @@ def measure_algorithm(solver_class, test_file: str, repeat: int = 5):
         times.append((t1 - t0) * 1000)  # ms
 
     avg_time_ms = sum(times) / len(times)
-    return avg_time_ms, peak_kb, nodes
+    return avg_time_ms, peak_kb, nodes, max_open
 
 def run_all_benchmarks():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -60,34 +62,38 @@ def run_all_benchmarks():
             (os.path.join(base_dir, "data", "input_5x5_hard.txt"), "5x5 (Hard)"),
             (os.path.join(base_dir, "data", "input_6x6_hard.txt"), "6x6 (Hard)"),
             (os.path.join(base_dir, "data", "input_8x8_hard.txt"), "8x8 (Hard)"),
-            (os.path.join(base_dir, "data", "input_10x10_hard.txt"), "10x10 (Hard)")
+            (os.path.join(base_dir, "data", "input_10x10_hard.txt"), "10x10 (Hard)"),
+            (os.path.join(base_dir, "data", "input_15x15_hard.txt"), "15x15 (Hard)")
         ])
     ]
 
     results = {}
 
     for set_title, test_cases in benchmark_sets:
-        print("\n" + "=" * 74)
+        print("\n" + "=" * 86)
         print(f"       {set_title}")
-        print("=" * 74)
-        print(f"{'Kích thước':<14} | {'Thuật toán':<6} | {'Thời gian (ms)':<15} | {'Peak RAM (KB)':<14} | {'Nodes duyệt':<10}")
-        print("-" * 74)
+        print("=" * 86)
+        print(f"{'Kích thước':<14} | {'Thuật toán':<6} | {'Thời gian (ms)':<15} | {'Peak RAM (KB)':<14} | {'Max Open':<10} | {'Nodes duyệt'}")
+        print("-" * 86)
 
         set_results = []
         for fpath, label in test_cases:
-            # DFS
-            dfs_time, dfs_ram, dfs_nodes = measure_algorithm(DFSSolver, fpath)
-            print(f"{label:<14} | {'DFS':<6} | {dfs_time:<15.4f} | {dfs_ram:<14.2f} | {dfs_nodes:<10}")
+            if not os.path.exists(fpath):
+                continue
 
-            # A*
-            astar_time, astar_ram, astar_nodes = measure_algorithm(AStarSolver, fpath)
-            print(f"{label:<14} | {'A*':<6} | {astar_time:<15.4f} | {astar_ram:<14.2f} | {astar_nodes:<10}")
-            print("-" * 74)
+            # DFS
+            dfs_time, dfs_ram, dfs_nodes, _ = measure_algorithm(DFSSolver, fpath)
+            print(f"{label:<14} | {'DFS':<6} | {dfs_time:<15.4f} | {dfs_ram:<14.2f} | {'N/A (Stack)':<10} | {dfs_nodes:<10}")
+
+            # Greedy Best-First Search
+            greedy_time, greedy_ram, greedy_nodes, greedy_open = measure_algorithm(GreedySolver, fpath)
+            print(f"{label:<14} | {'Greedy':<6} | {greedy_time:<15.4f} | {greedy_ram:<14.2f} | {greedy_open:<10} | {greedy_nodes:<10}")
+            print("-" * 86)
 
             set_results.append({
                 "map": label,
                 "dfs": {"time": dfs_time, "ram": dfs_ram, "nodes": dfs_nodes},
-                "astar": {"time": astar_time, "ram": astar_ram, "nodes": astar_nodes}
+                "greedy": {"time": greedy_time, "ram": greedy_ram, "nodes": greedy_nodes, "max_open": greedy_open}
             })
         results[set_title] = set_results
 

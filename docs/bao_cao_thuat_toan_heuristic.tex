@@ -1,0 +1,157 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[vietnamese]{babel}
+\usepackage[a4paper,left=2.5cm,right=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+\usepackage{setspace}
+\usepackage{indentfirst}
+\usepackage{hyperref}
+
+\setstretch{1.35}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{6pt}
+
+\begin{document}
+
+\section*{B. THUẬT TOÁN TÌM KIẾM HEURISTIC (INFORMED SEARCH)}
+
+\subsection*{1. Lý do lựa chọn giải thuật: Sự thoái hóa của A* và định hướng tiếp cận Greedy Best-First Search}
+
+Trong giai đoạn đầu của quá trình phát triển thuật toán tìm kiếm có thông tin cho bài toán \textit{Tents and Trees}, nhóm nghiên cứu đã triển khai thử nghiệm thuật toán kinh điển A* với hàm lượng giá chuẩn $f(n) = g(n) + h(n)$. Tuy nhiên, qua quá trình đánh giá thực nghiệm và phân tích cấu trúc toán học của bài toán, thuật toán A* đã bộc lộ một điểm nghẽn nghiêm trọng về khả năng định hướng không gian trạng thái.
+
+Cụ thể, trong bài toán cắm lều, mỗi hành động hợp lệ luôn tương ứng với việc ghép nối đúng một chiếc lều duy nhất cho một cây xác định. Do đó, chi phí thực tế đã tích lũy $g(n)$ phản ánh chính xác số lượng cây đã được giải quyết thành công, tức là tương đương tuyệt đối với độ sâu của nút trạng thái trong cây tìm kiếm: $g(n) = \text{depth}(n)$. Đối với một bài toán có tổng cộng $N$ cây, số lượng cây còn lại cần được phân bổ lều tại bất kỳ trạng thái $n$ nào luôn là $N - g(n)$. Nếu hàm Heuristic $h(n)$ phản ánh khoảng cách lý tưởng đến đích thông qua số cây còn lại, hàm lượng giá tổng quát của A* sẽ có dạng:
+\begin{equation}
+    f(n) = g(n) + h(n) = g(n) + [N - g(n)] = N = \text{const}
+\end{equation}
+
+Hiện tượng hàm $f(n)$ nhận cùng một giá trị hằng số $N$ tại mọi nhánh tìm kiếm đã triệt tiêu hoàn toàn khả năng phân loại mức độ ưu tiên của hàng đợi Min-Heap. Khi toàn bộ các trạng thái biên đều có điểm lượng giá ngang nhau, thuật toán A* bị thoái hóa hoàn toàn thành thuật toán Tìm kiếm theo Chiều rộng (Breadth-First Search - BFS). Hàng đợi tập biên khi đó phải lưu trữ toàn bộ các trạng thái trên cùng một mức độ sâu, dẫn đến hiện tượng bùng nổ không gian bộ nhớ theo hàm mũ và khiến hệ thống nhanh chóng cạn kiệt tài nguyên RAM.
+
+Để khắc phục triệt để nghịch lý trên, nhóm nghiên cứu đã quyết định chuyển đổi kiến trúc tìm kiếm sang giải thuật \textbf{Greedy Best-First Search (GBFS)} với hàm lượng giá được định nghĩa trực tiếp thông qua hàm Heuristic chuyên biệt:
+\begin{equation}
+    f(n) \equiv h(n)
+\end{equation}
+
+Bằng việc lược bỏ thành phần chi phí quá khứ $g(n)$, giải thuật GBFS dồn toàn bộ năng lực đánh giá vào hàm Heuristic $h(n)$ nhằm phản ánh mức độ căng thẳng ràng buộc còn lại trên bàn cờ. Giải thuật luôn ưu tiên khai phá nhánh tìm kiếm có tiềm năng giải tỏa áp lực không gian lớn nhất, nhờ đó định hướng đường đi thẳng tiến tới trạng thái đích và giảm thiểu tối đa số lượng trạng thái phải mở rộng.
+
+\subsection*{2. Mô hình hóa giải thuật Heuristic: Từ bàn cờ Board đến Kiến trúc Cây trạng thái}
+
+\subsubsection*{2.1. Sự khác biệt cốt tử trong mô hình hóa so với DFS}
+Mô hình bàn cờ trò chơi cùng các quy tắc không gian và vector hạn ngạch hàng/cột đã được xây dựng hoàn chỉnh trong lớp \texttt{Board} ở phần trước. Trong thuật toán tìm kiếm mù DFS, quá trình tìm kiếm được vận hành đơn giản thông qua cơ chế đệ quy trên Call Stack, thao tác trực tiếp trên một đối tượng bàn cờ duy nhất bằng cách cắm thử lều và quay lui rút lều tại chỗ mà hoàn toàn không cần khởi tạo các đối tượng nút trạng thái độc lập.
+
+Ngược lại, giải thuật tìm kiếm Heuristic có mục tiêu tìm kiếm toàn cục, đòi hỏi hệ thống phải thường xuyên so sánh mức độ tiềm năng giữa các nhánh rẽ hoàn toàn khác nhau trên khắp không gian bài toán để quyết định nhánh nào được đi tiếp. Do đó, bài toán bắt buộc phải được mô hình hóa thành một \textbf{Cây tìm kiếm đồ thị (Graph Search Tree)}. Mỗi lát cắt của bàn cờ tại một bước rẽ nhánh được đóng gói thành một đối tượng nút trạng thái riêng biệt (\texttt{GreedyNode}), và toàn bộ các nút này được quản lý đồng bộ thông qua hai cấu trúc dữ liệu chủ đạo là tập biên \texttt{Open} và tập khám phá \texttt{Closed}.
+
+\subsubsection*{2.2. Cơ chế điều phối tập biên Open (Min-Heap) và tập khám phá Closed (Hash Set)}
+Tập biên \texttt{Open} có nhiệm vụ quản lý tất cả các nút trạng thái đã được sinh ra nhưng chưa được mở rộng, bảo đảm luôn trích xuất trạng thái có triển vọng nhất theo tiêu chuẩn tối ưu toàn cục. Tập biên được hiện thực bằng cấu trúc dữ liệu Min-Heap nhị phân thông qua module \texttt{heapq}, cho phép lấy ra phần tử nhỏ nhất trong thời gian $\mathcal{O}(1)$ và chèn phần tử mới trong $\mathcal{O}(\log |\text{Open}|)$. Thứ tự ưu tiên giữa hai nút trong Min-Heap được phân xử thông qua phương thức so sánh \texttt{\_\_lt\_\_} gồm 3 tầng tinh gọn: Tầng 1 ưu tiên nút có hàm Heuristic $h$ nhỏ nhất; Tầng 2 ưu tiên nút có độ sâu \texttt{depth} lớn hơn nhằm khuyến khích giải thuật đào sâu tiến về đích; Tầng 3 phân xử theo thứ tự tọa độ tự nhiên của ô lều vừa cắm (hàng trên trước, cột bên trái trước) nhằm bảo đảm tính tất định 100\% của giải thuật.
+
+Tập khám phá \texttt{Closed} đóng vai trò là một bộ lọc kiểm soát trùng lặp, ngăn chặn giải thuật mở rộng lại các cấu hình bàn cờ đã từng được phân tích thông qua những con đường khác nhau. Tập \texttt{Closed} được hiện thực dưới dạng một Bảng băm (Hash Set) lưu trữ các khóa trạng thái bất biến gồm tuple \texttt{(frozenset(assigned\_trees), frozenset(tents))}. Với hàm băm tối ưu, thao tác kiểm tra sự tồn tại và bổ sung trạng thái vào tập \texttt{Closed} đạt độ phức tạp trung bình là $\mathcal{O}(1)$, triệt tiêu hoàn toàn nguy cơ lặp vòng vô tận.
+
+\subsubsection*{2.3. Bản chất toán học và trực giác của hàm Heuristic $h(n)$}
+Hàm Heuristic $h(n)$ được thiết kế nhằm định lượng mức độ nguy cơ bế tắc và áp lực không gian trên toàn bộ bàn cờ tại trạng thái $n$. Ký hiệu $\mathcal{U}(n)$ là tập hợp các cây chưa được ghép nối với lều, và $\mathcal{D}(T)$ là miền giá trị hợp lệ của cây $T \in \mathcal{U}(n)$, bao gồm các ô kề 4 hướng hiện vẫn thỏa mãn tất cả các ràng buộc đặt lều (chưa bị chiếm giữ, không chạm lều khác và thuộc hàng/cột chưa vượt chỉ tiêu). Hàm Heuristic $h(n)$ được xác định theo công thức:
+\begin{equation}
+    h(n) = \sum_{T \in \mathcal{U}(n)} \frac{1}{|\mathcal{D}(T)|}
+\end{equation}
+
+Ý nghĩa vật lý của công thức trên nằm ở phép nghịch đảo kích thước miền giá trị. Một cây còn nhiều ô kề hợp lệ, ví dụ $|\mathcal{D}(T)| = 4$, chỉ đóng góp một lượng nhỏ $0.25$ vào hàm mục tiêu, phản ánh rằng biến này còn rất nhiều sự tự do và xác suất gây tắc nghẽn là rất thấp. Ngược lại, khi các lều xung quanh thu hẹp các phương án của một cây xuống chỉ còn đúng 1 ô duy nhất ($|\mathcal{D}(T)| = 1$), cây đó sẽ đóng góp mức tối đa là $1.00$ vào hàm lượng giá, phát tín hiệu cảnh báo rằng trạng thái này đang ở trong tình thế vô cùng ngặt nghèo. Tổng các giá trị nghịch đảo này đóng vai trò như một thước đo ứng suất ràng buộc của toàn bộ lưới cờ. Trạng thái đích đạt được khi toàn bộ $N$ cây đều đã được ghép lều thành công, khi đó tập $\mathcal{U}(n)$ trở thành rỗng và giá trị hàm Heuristic triệt tiêu về $0$.
+
+\subsection*{3. Đề xuất phương án tối ưu kép: Con trỏ cha và Cập nhật Heuristic vi sai $\mathcal{O}(1)$}
+
+\subsubsection*{3.1. Thiết kế ban đầu và điểm nghẽn hiệu năng nhận diện được}
+Trong thiết kế ban đầu của nhóm, mỗi nút trạng thái được khởi tạo theo cơ chế sao chép toàn phần (Full-State Cloning), tức là mỗi khi sinh ra một nút con, hệ thống phải nhân bản toàn bộ tập hợp tọa độ các lều đã đặt cùng với danh sách lịch sử đường đi. Cơ chế này tiêu tốn trung bình từ 1.0 KB đến 1.2 KB bộ nhớ cho mỗi nút, khiến việc duyệt hàng vạn trạng thái trên các bàn cờ lớn nhanh chóng làm cạn kiệt tài nguyên RAM.
+
+Đồng thời, phương pháp đánh giá Heuristic ban đầu được thực hiện theo cách ngây thơ toàn cục: Tại mỗi nút con mới sinh, thuật toán lại chạy vòng lặp duyệt qua toàn bộ $N$ cây trên bàn cờ để đếm lại số ô hợp lệ từ đầu với độ phức tạp $\mathcal{O}(N)$. Trong thực tế, một chiếc lều mới cắm ở một góc bàn cờ chỉ có thể tác động đến một vài cây nằm ngay sát cạnh nó, trong khi hơn 90\% số cây còn lại ở khoảng cách xa hoàn toàn không thay đổi số ô hợp lệ nhưng vẫn bị tính toán lại một cách dư thừa, gây lãng phí nghiêm trọng năng lực xử lý của CPU.
+
+\subsubsection*{3.2. Cải tiến 1: Tối ưu hóa cấu trúc dữ liệu bằng Con trỏ cha (Structural Sharing)}
+Nhằm giải quyết triệt để điểm nghẽn bộ nhớ, nhóm đề xuất giải pháp chia sẻ cấu trúc (Structural Sharing / Parent Pointer). Thay vì sao chép toàn bộ dữ liệu bàn cờ, mỗi nút \texttt{GreedyNode} chỉ lưu trữ đúng thông tin vi sai của nước đi vừa thực hiện gồm \texttt{action = (tree\_index, r, c)} cùng một con trỏ tham chiếu \texttt{parent} trỏ ngược về nút cha sinh ra nó, kết hợp với hai giá trị vô hướng là độ sâu \texttt{depth} và chi phí Heuristic \texttt{h}. Toàn bộ chuỗi lịch sử quá khứ được kế thừa tự nhiên thông qua chuỗi con trỏ cha mà không tốn thêm bất kỳ byte bộ nhớ nào.
+
+Cải tiến này giúp kích thước của một nút trạng thái giảm mạnh từ 1.1 KB xuống chỉ còn đúng \textbf{116 bytes}, tương đương mức tiết kiệm gần 90\% dung lượng RAM. Khi giải thuật chạm đích, lời giải hoàn chỉnh được tái hiện chuẩn xác thông qua việc lần ngược chuỗi con trỏ từ nút đích về nút gốc với độ phức tạp thời gian chỉ là $\mathcal{O}(N)$, hoàn toàn không gây độ trễ tính toán.
+
+\subsubsection*{3.3. Cải tiến 2: Tối ưu hóa tính toán bằng Heuristic vi sai cục bộ $\mathcal{O}(1)$ (Incremental Update)}
+Nhằm loại bỏ sự lãng phí tính toán toàn cục, nhóm đề xuất giải pháp cập nhật Heuristic vi sai. Thuật toán chỉ thực hiện phép quét toàn diện đúng một lần duy nhất tại nút gốc $n_0$ trên bàn cờ ban đầu để xác lập giá trị Heuristic nền tảng:
+\begin{equation}
+    h_0 = \sum_{T \in \mathcal{U}_0} \frac{1}{|\mathcal{D}(T)|}
+\end{equation}
+
+Tại các bước mở rộng tiếp theo, khi một chiếc lều được đặt thử tại tọa độ $(r, c)$ cho cây $T_{\text{assigned}}$, giải thuật không duyệt lại toàn bộ $N$ cây mà chỉ xác định tập hợp các cây thực sự bị ảnh hưởng, ký hiệu là $\text{Affected}$. Tập $\text{Affected}$ bao gồm các cây chưa gán nằm trong bán kính khoảng cách Chebyshev $\max(|r - r_T|, |c - c_T|) \le 2$ hoặc các cây nằm kề hàng/cột vừa đạt đủ chỉ tiêu lều. Giá trị Heuristic mới của nút con được cập nhật trực tiếp từ giá trị Heuristic của nút cha thông qua công thức vi sai:
+\begin{equation}
+    h_{\text{mới}} = h_{\text{cũ}} - \frac{1}{|\mathcal{D}(T_{\text{assigned}})|} + \sum_{T \in \text{Affected}} \left( \frac{1}{|\mathcal{D}_{\text{mới}}(T)|} - \frac{1}{|\mathcal{D}_{\text{cũ}}(T)|} \right)
+\end{equation}
+
+Do kích thước của tập $\text{Affected}$ luôn là một hằng số nhỏ (thông thường chỉ từ 2 đến 3 cây) bất kể quy mô bàn cờ lớn đến đâu, công thức vi sai trên đã đưa độ phức tạp của bước đánh giá Heuristic từ $\mathcal{O}(N)$ về mức $\mathcal{O}(1)$, giúp giải thuật vận hành với tốc độ vượt trội.
+
+\subsection*{4. Chiến lược chọn biến MRV và cắt tỉa ràng buộc CSP}
+
+\subsubsection*{4.1. Chiến lược chọn biến MRV (Minimum Remaining Values - Fail-First Principle)}
+Trong các bài toán thỏa mãn ràng buộc, thứ tự chọn biến để gán giá trị đóng vai trò quyết định đến kích thước của toàn bộ cây tìm kiếm. Thay vì duyệt tuần tự các cây theo chỉ mục cố định, giải thuật áp dụng chiến lược MRV để mang lại hai lợi ích giải thuật cốt lõi.
+
+Thứ nhất, cơ chế phát hiện ngõ cụt tại chỗ (Dead-end Pruning) dựa trên nguyên lý thất bại sớm giúp bảo vệ giải thuật khỏi việc phân nhánh lãng phí. Nếu trong quá trình đánh giá, giải thuật phát hiện có bất kỳ cây nào đã bị các lều trước đó triệt tiêu toàn bộ miền giá trị hợp lệ ($|\mathcal{D}(T)| = 0$), trạng thái hiện tại được xác định chắc chắn là một ngõ cụt không thể dẫn tới lời giải. Khi đó, giải thuật lập tức cắt tỉa toàn bộ nhánh tìm kiếm này mà không sinh ra bất kỳ nút con nào vào tập biên \texttt{Open}.
+
+Thứ hai, chiến lược MRV giúp thu hẹp tối đa hệ số phân nhánh của cây tìm kiếm. Bằng việc luôn ưu tiên mở rộng cây có số lượng ô kề khả dĩ ít nhất, hệ số phân nhánh tại mỗi bước được ép xuống mức cực tiểu. Đặc biệt, đối với các cây chỉ còn duy nhất 1 ô hợp lệ, hệ số phân nhánh đạt mức tối ưu $b = 1$, biến bước đi này thành một lựa chọn cưỡng bức tất yếu và ngăn chặn hoàn toàn hiện tượng bùng nổ tổ hợp.
+
+\subsubsection*{4.2. Kỹ thuật cắt tỉa theo sức chứa hàng và cột (Row/Column Capacity Pruning)}
+Bên cạnh ràng buộc cục bộ giữa lều và cây, bài toán còn phải thỏa mãn các ràng buộc toàn cục về số lượng lều trên mỗi hàng và mỗi cột. Hàm \texttt{\_is\_row\_col\_satisfiable} tiến hành kiểm tra điều kiện cần của bài toán CSP tại hàng $r$ và cột $c$ nơi lều mới dự kiến được đặt. Gọi $\text{quota}$ là chỉ tiêu lều của đường thẳng, $\text{placed}$ là số lều hiện hữu sau khi đặt thử, và $\text{avail}$ là số ô trống còn khả năng hợp lệ trên đường thẳng đó:
+\begin{equation}
+    \text{need} = \text{quota} - \text{placed}
+\end{equation}
+
+Nếu số ô khả dĩ còn lại nhỏ hơn nhu cầu cần cắm ($\text{avail} < \text{need}$), điều đó chứng minh rằng dù các bước tiếp theo có đặt lều ở bất kỳ vị trí nào, hàng hoặc cột này cũng không bao giờ có thể đạt đủ chỉ tiêu quy định. Do đó, nhánh tìm kiếm này bị triệt tiêu ngay lập tức trước khi nút con được tạo ra.
+
+\subsection*{5. Quy trình thực thi giải thuật và Lưu đồ chi tiết}
+
+Quy trình vận hành tổng quát của giải thuật Greedy Best-First Search bắt đầu từ bước thiết lập trạng thái khởi đầu, nạp bàn cờ từ dữ liệu đầu vào, quét tính toán Heuristic gốc và khởi tạo các tập dữ liệu, sau đó bước vào chu trình lặp trích xuất và mở rộng trạng thái cho đến khi tìm thấy lời giải hợp lệ hoặc chứng minh bài toán vô nghiệm. 
+
+\begin{figure}[htbp]
+\centering
+\resizebox{0.72\textwidth}{!}{
+\begin{tikzpicture}[
+    node distance=1.2cm and 1.5cm,
+    startstop/.style={rectangle, rounded corners=12pt, minimum width=4.5cm, minimum height=0.9cm, text centered, draw=black, fill=blue!15, font=\bfseries\small},
+    process/.style={rectangle, rounded corners=3pt, minimum width=5cm, minimum height=0.9cm, text centered, draw=black, fill=gray!10, font=\small},
+    decision/.style={diamond, minimum width=3.2cm, minimum height=1.2cm, text centered, draw=black, fill=yellow!15, aspect=2, font=\small},
+    arrow/.style={thick, -{Latex[length=2.5mm]}}
+]
+    \node (start) [startstop] {1. TRẠNG THÁI KHỞI ĐẦU: Nạp ma trận, cây, hạn ngạch};
+    \node (calcH) [process, below=0.6cm of start] {2. Tính $h_0 = \sum 1/|\mathcal{D}(T)|$ trên bàn cờ rỗng};
+    \node (init) [process, below=0.6cm of calcH] {3. Tạo $n_0$, Min-Heap $\text{Open}=\{n_0\}$, $\text{Closed}=\emptyset$};
+    \node (checkOpen) [decision, below=0.6cm of init] {4. Open rỗng?};
+    \node (fail) [startstop, right=1.5cm of checkOpen, fill=red!20] {VÔ NGHIỆM};
+    \node (pop) [process, below=0.7cm of checkOpen] {5. Trích xuất $n = \text{heappop}(\text{Open})$};
+    \node (checkClosed) [decision, below=0.6cm of pop] {6. $n \in \text{Closed}$?};
+    \node (goalTest) [decision, below=0.7cm of checkClosed, fill=blue!10] {7. $\text{depth} = N \land \text{is\_goal}()$?};
+    \node (success) [startstop, right=1.2cm of goalTest, fill=green!20] {THÀNH CÔNG (Lời giải)};
+    \node (mrv) [process, below=0.7cm of goalTest] {8. MRV: Chọn $T^* = \arg\min |\mathcal{D}(T)|$};
+    \node (deadEnd) [decision, below=0.6cm of mrv, fill=red!15] {9. Tồn tại cây có $|\mathcal{D}| = 0$?};
+    \node (tryCell) [process, below=0.7cm of deadEnd] {10. Với mỗi ô kề $(r, c) \in \mathcal{D}(T^*)$: Cắm thử lều};
+    \node (capCheck) [decision, below=0.6cm of tryCell] {11. Thỏa Hàng $r$ \& Cột $c$ ($\text{need} \le \text{avail}$)?};
+    \node (neighborCheck) [decision, below=0.7cm of capCheck] {12. Các cây kề còn ô ($|\mathcal{D}_{\text{new}}| > 0$)?};
+    \node (deltaH) [process, below=0.7cm of neighborCheck] {13. Tính vi sai $\Delta h$ cục bộ cho cây lân cận};
+    \node (pushNode) [process, below=0.6cm of deltaH, fill=green!10] {14. Tạo $n_{\text{child}}$ ($\text{parent}=n, h=n.h+\Delta h$), push Open};
+
+    \draw [arrow] (start) -- (calcH);
+    \draw [arrow] (calcH) -- (init);
+    \draw [arrow] (init) -- (checkOpen);
+    \draw [arrow] (checkOpen) -- node[above, font=\footnotesize] {Đúng} (fail);
+    \draw [arrow] (checkOpen) -- node[right, font=\footnotesize] {Sai} (pop);
+    \draw [arrow] (pop) -- (checkClosed);
+    \draw [arrow] (checkClosed.west) -- ++(-1.2,0) |- node[near end, left, font=\footnotesize] {Đúng} (checkOpen.west);
+    \draw [arrow] (checkClosed) -- node[right, font=\footnotesize] {Sai} (goalTest);
+    \draw [arrow] (goalTest) -- node[above, font=\footnotesize] {Đúng} (success);
+    \draw [arrow] (goalTest) -- node[right, font=\footnotesize] {Sai} (mrv);
+    \draw [arrow] (mrv) -- (deadEnd);
+    \draw [arrow] (deadEnd.west) -- ++(-1.6,0) |- node[near end, left, font=\footnotesize] {Đúng (Cắt tỉa)} (checkOpen.west);
+    \draw [arrow] (deadEnd) -- node[right, font=\footnotesize] {Sai} (tryCell);
+    \draw [arrow] (tryCell) -- (capCheck);
+    \draw [arrow] (capCheck.east) -- ++(1.0,0) |- node[near start, right, font=\footnotesize] {Sai} (tryCell.east);
+    \draw [arrow] (capCheck) -- node[right, font=\footnotesize] {Thỏa} (neighborCheck);
+    \draw [arrow] (neighborCheck.east) -- ++(1.3,0) |- node[near start, right, font=\footnotesize] {Sai} (tryCell.east);
+    \draw [arrow] (neighborCheck) -- node[right, font=\footnotesize] {An toàn} (deltaH);
+    \draw [arrow] (deltaH) -- (pushNode);
+    \draw [arrow] (pushNode.west) -- ++(-2.0,0) |- node[near start, left, font=\footnotesize] {Lặp lại} (checkOpen.west);
+\end{tikzpicture}
+}
+\caption{Lưu đồ toàn diện quy trình thực thi giải thuật Greedy Best-First Search từ trạng thái khởi tạo đến đích}
+\end{figure}
+
+\end{document}

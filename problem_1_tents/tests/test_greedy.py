@@ -1,5 +1,5 @@
 """
-test_astar.py - Kiểm tra giải thuật A* trên bài test input_6x6.txt
+test_greedy.py - Kiểm tra giải thuật Greedy Best-First Search kết hợp MRV trên bài test input_6x6.txt
 """
 import os
 import sys
@@ -14,18 +14,18 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from src.board import Board
-from src.astar_solver import AStarSolver
+from src.greedy_solver import GreedySolver
 
 def main():
-    print("=== KIỂM THỬ THUẬT TOÁN A* (HEURISTIC SEARCH) ===")
+    print("=== KIỂM THỬ THUẬT TOÁN GREEDY BEST-FIRST SEARCH (HEURISTIC SEARCH) ===")
     test_file = os.path.join(BASE_DIR, "data", "input_6x6.txt")
     board = Board(test_file)
 
     print("\nBàn cờ ban đầu:")
     board.display()
 
-    solver = AStarSolver(board)
-    print("Đang giải bài toán bằng A*...")
+    solver = GreedySolver(board)
+    print("Đang giải bài toán bằng Greedy Best-First Search + MRV...")
     success = solver.solve()
 
     if success:
@@ -35,6 +35,7 @@ def main():
         print(f"Tổng số lều đã đặt: {len(board.tents)}")
         print(f"Vị trí các lều: {sorted(list(board.tents))}")
         print(f"Số trạng thái đã mở rộng (Nodes explored): {solver.nodes_explored}")
+        print(f"Kích thước hàng đợi cực đại (Max Open): {solver.max_open}")
         print(f"Thời gian thực thi: {solver.execution_time * 1000:.3f} ms ({solver.execution_time:.6f} giây)")
         print(f"Tổng số bước trong lời giải: {len(solver.step_history)}")
     else:
