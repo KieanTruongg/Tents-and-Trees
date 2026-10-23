@@ -18,7 +18,11 @@ from src.greedy_solver import GreedySolver
 
 def main():
     print("=== KIỂM THỬ THUẬT TOÁN GREEDY BEST-FIRST SEARCH (HEURISTIC SEARCH) ===")
-    test_file = os.path.join(BASE_DIR, "data", "input_6x6.txt")
+    test_file = os.path.join(BASE_DIR, "data", "6x6 hard tents.txt")
+    if not os.path.exists(test_file):
+        data_files = [f for f in os.listdir(os.path.join(BASE_DIR, "data")) if f.endswith(".txt")]
+        if data_files:
+            test_file = os.path.join(BASE_DIR, "data", sorted(data_files)[0])
     board = Board(test_file)
 
     print("\nBàn cờ ban đầu:")

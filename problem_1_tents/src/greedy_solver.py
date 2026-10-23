@@ -42,13 +42,22 @@ class GreedyNode:
             cur = cur.parent
         return assigned
 
-    def get_history(self) -> list:
+    def get_history(self, board=None) -> list:
         """Tái tạo con đường chiến thắng (Solution Path) để cấp cho GUI animation."""
         history = []
         cur = self
         while cur and cur.action:
             tree_idx, r, c = cur.action
-            history.append(("place", r, c, tree_idx))
+            if board and tree_idx < len(board.trees):
+                tr, tc = board.trees[tree_idx]
+                dname = ""
+                if r < tr: dname = "Trên ↑"
+                elif r > tr: dname = "Dưới ↓"
+                elif c < tc: dname = "Trái ←"
+                elif c > tc: dname = "Phải →"
+                history.append(("place", r, c, tree_idx, dname, (tr, tc), f"Lời giải tối ưu: Cắm lều cho Cây #{tree_idx}"))
+            else:
+                history.append(("place", r, c, tree_idx))
             cur = cur.parent
         history.reverse()
         return history
@@ -81,7 +90,8 @@ class GreedySolver:
         self.nodes_explored = 0      # Số trạng thái thực sự được mở rộng (đếm sau closed_set)
         self.max_open = 0            # Kích thước cực đại của hàng đợi ưu tiên Open Set (Frontier Peak)
         self.execution_time = 0.0    # Thời gian chạy
-        self.step_history = []       # Lịch sử các bước phục vụ demo trực quan GUI
+        self.step_history = []       # Lịch sử con đường lời giải (Solution Path)
+        self.exploration_history = []# Toàn bộ tiến trình tìm kiếm thực tế (Exploration History)
         self.solved = False
 
     def _calculate_initial_heuristic(self):
@@ -146,7 +156,10 @@ class GreedySolver:
         self.nodes_explored = 0
         self.max_open = 0
         self.board.tents.clear()
+        self.step_history = []
+        self.exploration_history = []
         start_time = time.perf_counter()
+        prev_tents = set()
 
         # 1. Tính toán Heuristic ban đầu cho Node Gốc
         init_h = self._calculate_initial_heuristic()
@@ -183,6 +196,38 @@ class GreedySolver:
             # tăng nodes_explored sau khi đã qua bộ lọc closed_set
             self.nodes_explored += 1
 
+            # Ghi nhận diễn biến tìm kiếm thực tế (Exploration History)
+            if current_tents != prev_tents:
+                removed_cells = prev_tents - current_tents
+                added_cells = current_tents - prev_tents
+
+                for rem_r, rem_c in removed_cells:
+                    self.exploration_history.append((
+                        "remove", rem_r, rem_c, None, "", None,
+                        f"Đổi nhánh trong Open Set (chuyển sang node có h = {current_node.h:.2f})"
+                    ))
+
+                for add_r, add_c in added_cells:
+                    t_idx = None
+                    t_coord = None
+                    d_name = ""
+                    if current_node.action and current_node.action[1] == add_r and current_node.action[2] == add_c:
+                        t_idx = current_node.action[0]
+                        if t_idx < len(self.board.trees):
+                            t_coord = self.board.trees[t_idx]
+                            tr, tc = t_coord
+                            if add_r < tr: d_name = "Trên ↑"
+                            elif add_r > tr: d_name = "Dưới ↓"
+                            elif add_c < tc: d_name = "Trái ←"
+                            elif add_c > tc: d_name = "Phải →"
+
+                    self.exploration_history.append((
+                        "place", add_r, add_c, t_idx, d_name, t_coord,
+                        f"Lấy node min h = {current_node.h:.2f} từ Open Set (Frontier: {len(open_set)})"
+                    ))
+
+                prev_tents = set(current_tents)
+
             # Cập nhật tạm thời bàn cờ để kiểm tra đích
             self.board.tents = set(current_tents)
 
@@ -190,7 +235,7 @@ class GreedySolver:
             if current_node.depth == len(self.board.trees):
                 if self.board.is_goal():
                     self.solved = True
-                    self.step_history = current_node.get_history()
+                    self.step_history = current_node.get_history(self.board)
                     self.execution_time = time.perf_counter() - start_time
                     return True
                 continue
